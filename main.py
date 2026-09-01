@@ -406,11 +406,11 @@ def descargar_reporte(nombre_archivo: str):
         media = "application/pdf" if nombre_archivo.endswith(".pdf") else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         return FileResponse(ruta_archivo, filename=nombre_archivo, media_type=media)
     return {"status": "error", "mensaje": "Archivo no encontrado"}
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
-
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
