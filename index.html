@@ -13,6 +13,7 @@
         input { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
         button { width: 100%; background-color: #1F4E79; color: white; padding: 12px; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         button:hover { background-color: #153754; }
+        button:disabled { background-color: #94A3B8; cursor: not-allowed; }
         .alert { margin-top: 15px; padding: 12px; border-radius: 4px; text-align: center; display: none; }
         .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
@@ -25,15 +26,15 @@
 <div class="container">
     <h2>Registro de Muestra de Ensayo</h2>
     
-    <form id="sampleForm">
+    <form id="sampleForm" onsubmit="event.preventDefault(); enviarDatos();">
         <div class="form-group">
             <label>Cliente:</label>
-            <input type="text" id="cliente" placeholder="Ej. Ana" required>
+            <input type="text" id="cliente" placeholder="Ej. Mily" required>
         </div>
 
         <div class="form-group">
             <label>Identificación / Código de Muestra:</label>
-            <input type="text" id="codigo" placeholder="Ej. JR-1769-Ana" required>
+            <input type="text" id="codigo" placeholder="Ej. Jr 6888" required>
         </div>
 
         <div class="form-group">
@@ -43,27 +44,26 @@
 
         <div class="form-group">
             <label>Peso Au Balanza Analítica (g):</label>
-            <input type="number" step="0.00001" id="peso_au" placeholder="0.00114" required>
+            <input type="number" step="any" id="peso_au" placeholder="0.05" required>
         </div>
 
         <div class="form-group">
             <label>Peso Muestra (g):</label>
-            <input type="number" step="0.01" id="peso_muestra" value="10.05" placeholder="10.05" required>
+            <input type="number" step="any" id="peso_muestra" value="10.0" placeholder="10.0" required>
         </div>
 
         <div class="form-group">
             <label>Porcentaje (%):</label>
-            <input type="number" step="any" id="porcentaje" value="90" required>
+            <input type="number" step="any" id="porcentaje" value="100" required>
         </div>
 
-        <button type="button" onclick="enviarDatos()">💾 Guardar y Generar Informe</button>
+        <button type="submit" id="btnGuardar">💾 Guardar y Generar Informe</button>
     </form>
 
     <div id="mensaje" class="alert"></div>
 </div>
 
 <script>
-    // Asigna la fecha y hora actual por defecto al cargar la página
     window.onload = function() {
         const ahora = new Date();
         ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
@@ -72,16 +72,25 @@
 
     async function enviarDatos() {
         const mensajeDiv = document.getElementById("mensaje");
+        const btn = document.getElementById("btnGuardar");
         mensajeDiv.style.display = "none";
 
-        const datos = {
-            cliente: document.getElementById("cliente").value,
-            codigo: document.getElementById("codigo").value,
-            fecha_recepcion: document.getElementById("fecha_recepcion").value,
-            peso_au: parseFloat(document.getElementById("peso_au").value) || 0,
-            peso_muestra: parseFloat(document.getElementById("peso_muestra").value) || 10.0,
-            porcentaje: parseFloat(document.getElementById("porcentaje").value) || 100
-        };
+        const cliente = document.getElementById("cliente").value.trim();
+        const codigo = document.getElementById("codigo").value.trim();
+        const fecha_recepcion = document.getElementById("fecha_recepcion").value;
+        const peso_au = parseFloat(document.getElementById("peso_au").value) || 0;
+        const peso_muestra = parseFloat(document.getElementById("peso_muestra").value) || 10.0;
+        const porcentaje = parseFloat(document.getElementById("porcentaje").value) || 100;
+
+        if (!cliente || !codigo) {
+            alert("Por favor completa todos los campos requeridos.");
+            return;
+        }
+
+        const datos = { cliente, codigo, fecha_recepcion, peso_au, peso_muestra, porcentaje };
+
+        btn.disabled = true;
+        btn.innerText = "⏳ Generando informe...";
 
         try {
             const respuesta = await fetch("/guardar", {
@@ -95,11 +104,11 @@
             if (resultado.status === "ok") {
                 mensajeDiv.className = "alert success";
                 mensajeDiv.innerHTML = `
-                    ✅ <strong>${resultado.mensaje}</strong><br>
+                    ✅ <strong>${resultado.mensaje}</strong><br><br>
                     <strong>Recepción:</strong> ${resultado.fecha_recepcion}<br>
                     <strong>Emisión:</strong> ${resultado.fecha_emision}<br>
                     Ley Au: <strong>${resultado.ley_calculada} gr/tm</strong><br><br>
-                    <a class="download-btn" href="/descargar/${resultado.archivo}" target="_blank">📥 Descargar ${resultado.archivo}</a>
+                    <a class="download-btn" href="${resultado.url_descarga}" target="_blank">📥 Descargar PDF Oficial</a>
                 `;
             } else {
                 mensajeDiv.className = "alert error";
@@ -108,8 +117,11 @@
             mensajeDiv.style.display = "block";
         } catch (error) {
             mensajeDiv.className = "alert error";
-            mensajeDiv.innerHTML = "❌ Error en el servidor: " + error.message;
+            mensajeDiv.innerHTML = "❌ Error de conexión con el servidor. Inténtalo de nuevo.";
             mensajeDiv.style.display = "block";
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "💾 Guardar y Generar Informe";
         }
     }
 </script>
