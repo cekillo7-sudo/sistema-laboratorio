@@ -248,7 +248,6 @@ def enviar_reporte_correo(archivo_pdf_path, cliente, nro_informe, ley_au):
             adjunto.add_header('Content-Disposition', 'attachment', filename=os.path.basename(archivo_pdf_path))
             msg.attach(adjunto)
 
-        # Timeout de 5 segundos para evitar bloqueos si Render restringe el puerto SMTP
         server = smtplib.SMTP('smtp.gmail.com', 587, timeout=5)
         server.starttls()
         server.login(CORREO_EMISOR, PASSWORD_CORREO)
@@ -385,11 +384,24 @@ async def guardar_muestra(muestra: Muestra):
 
 @app.get("/descargar/{nombre_archivo}")
 def descargar_reporte(nombre_archivo: str):
-    ruta_archivo = os.path.join(BASE_DIR, nombre_archivo)
+    nombre_limpio = os.path.basename(nombre_archivo)
+    ruta_archivo = os.path.join(BASE_DIR, nombre_limpio)
+    
     if os.path.exists(ruta_archivo):
-        media = "application/pdf" if nombre_archivo.endswith(".pdf") else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        return FileResponse(ruta_archivo, filename=nombre_archivo, media_type=media)
-    return {"status": "error", "mensaje": "Archivo no encontrado"}
+        media = "application/pdf" if nombre_limpio.endswith(".pdf") else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        return FileResponse(ruta_archivo, filename=nombre_limpio, media_type=media)
+    
+    try:
+        archivos = os.listdir(BASE_DIR)
+        for archivo in archivos:
+            if nombre_limpio.lower() in archivo.lower():
+                ruta_alternativa = os.path.join(BASE_DIR, archivo)
+                media = "application/pdf" if archivo.endswith(".pdf") else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                return FileResponse(ruta_alternativa, filename=archivo, media_type=media)
+    except Exception:
+        pass
+        
+    return {"status": "error", "mensaje": "Archivo no encontrado en el servidor. Intenta generar el informe nuevamente."}
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
