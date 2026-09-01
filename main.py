@@ -70,7 +70,6 @@ def generar_pdf_oficial(datos, pdf_path):
 
     nro_informe = str(datos.get("id_correlativo", 69)).zfill(6)
 
-    # 1. Encabezado Logo
     logo_path = os.path.join(BASE_DIR, "logo.png")
     if os.path.exists(logo_path):
         img_logo = Image(logo_path, width=400, height=100)
@@ -86,11 +85,9 @@ def generar_pdf_oficial(datos, pdf_path):
 
     elements.append(Spacer(1, 20))
 
-    # 2. Título Informe (Correlativo)
     elements.append(Paragraph(f"INFORME DE ENSAYO-N° {nro_informe}", style_title))
     elements.append(Spacer(1, 20))
 
-    # 3. Datos del cliente
     info_data = [
         [Paragraph("Cliente:", style_label), Paragraph(str(datos.get("cliente", "")), style_value)],
         [Paragraph("Tipo de muestra:", style_label), Paragraph("Mineral", style_value)],
@@ -109,7 +106,6 @@ def generar_pdf_oficial(datos, pdf_path):
     elements.append(info_table)
     elements.append(Spacer(1, 25))
 
-    # 4. Tabla de Ensayos
     headers_row1 = [
         Paragraph("Descripcion de la Muestra", style_th),
         Paragraph("Porcentaje", style_th),
@@ -157,7 +153,6 @@ def generar_pdf_oficial(datos, pdf_path):
     elements.append(res_table)
     elements.append(Spacer(1, 20))
 
-    # 5. Fecha de emisión
     emision_data = [
         [Paragraph("<b>FECHA DE EMISIÓN:</b>", style_label), Paragraph(str(datos.get("fecha_emision", "")), style_value)]
     ]
@@ -169,15 +164,12 @@ def generar_pdf_oficial(datos, pdf_path):
     elements.append(emision_table)
     elements.append(Spacer(1, 20))
 
-    # 6. Disclaimers
     elements.append(Paragraph("Este informe no debe reproducirse total ni parcial sin autorización escrita de Lab.InkaGoldSilver.SAC", style_disclaimer))
     elements.append(Paragraph("Los resultados de este certificado solo corresponden a la muestra recibida en nuestra oficina.", style_disclaimer))
     elements.append(Paragraph("Los remanentes de la muestra se guardaran por un periodo máximo de 1 semana.", style_disclaimer))
     
-    # Espacio ampliado para posicionar la firma más abajo de manera correcta
     elements.append(Spacer(1, 55))
 
-    # 7. Sello y firma posicionados con el tamaño de letra reducido (fontSize=6)
     firma_path = os.path.join(BASE_DIR, "firma.png")
     sello_path = os.path.join(BASE_DIR, "sello.png")
 
@@ -206,7 +198,6 @@ def generar_pdf_oficial(datos, pdf_path):
     elements.append(firmas_data_table)
     elements.append(Spacer(1, 20))
 
-    # 8. Pie de página
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1'), spaceBefore=5, spaceAfter=8))
     elements.append(Paragraph("Av. Los Jasmines S/N & Jr. Los Tulipanes D44 - Llacuabamba", style_footer_text))
     elements.append(Paragraph("cel : 913662466", style_footer_text))
@@ -315,6 +306,21 @@ def init_db():
             fecha_emision TEXT
         )
     ''')
+    
+    # Migración automática para asegurar columnas faltantes en producción
+    columnas_necesarias = [
+        ("fecha_recepcion", "TEXT"),
+        ("fecha_emision", "TEXT"),
+        ("cliente", "TEXT"),
+        ("codigo", "TEXT"),
+        ("ley_au", "REAL")
+    ]
+    for col_nombre, col_tipo in columnas_necesarias:
+        try:
+            cursor.execute(f"ALTER TABLE muestras ADD COLUMN {col_nombre} {col_tipo}")
+        except sqlite3.OperationalError:
+            pass # La columna ya existe
+
     conn.commit()
     conn.close()
 
@@ -406,6 +412,7 @@ def descargar_reporte(nombre_archivo: str):
         media = "application/pdf" if nombre_archivo.endswith(".pdf") else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         return FileResponse(ruta_archivo, filename=nombre_archivo, media_type=media)
     return {"status": "error", "mensaje": "Archivo no encontrado"}
+
 @app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
     return {"status": "ok"}
