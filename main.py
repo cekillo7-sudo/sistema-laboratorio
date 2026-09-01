@@ -319,6 +319,7 @@ async def guardar_muestra(muestra: Muestra):
         else:
             ley_au_100 = 0.0
 
+        # CORRECCIÓN EXACTA DE PORCENTAJE (Funciona perfectamente al 90%, 100%, etc.)
         factor = muestra.porcentaje / 100.0
         ley_au_final = round(ley_au_100 * factor, 2)
         ley_oz_tc = round(ley_au_final / 34.2857, 2)
