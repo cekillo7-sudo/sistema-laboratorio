@@ -43,6 +43,14 @@ class Muestra(BaseModel):
     peso_muestra: float = 10.0
     porcentaje: float = 100.0
 
+class RecepcionMuestra(BaseModel):
+    codigo: str = ""
+    cliente: str = ""
+    tipo_muestra: str = "Mineral"
+    detalle_envase: str = "1"
+    procedencia: str = "Llacuabamba"
+    condicion: str = "Sin precinto"
+
 def generar_pdf_oficial(datos, pdf_path):
     doc = SimpleDocTemplate(
         pdf_path,
@@ -87,12 +95,13 @@ def generar_pdf_oficial(datos, pdf_path):
     elements.append(Paragraph(f"INFORME DE ENSAYO-N° {nro_informe}", style_title))
     elements.append(Spacer(1, 20))
 
+    # DATOS DINÁMICOS DESDE LA RECEPCIÓN
     info_data = [
         [Paragraph("Cliente:", style_label), Paragraph(str(datos.get("cliente", "")), style_value)],
-        [Paragraph("Tipo de muestra:", style_label), Paragraph("Mineral", style_value)],
-        [Paragraph("Detalle del envase:", style_label), Paragraph("1", style_value)],
-        [Paragraph("Procedencia:", style_label), Paragraph("Llacuabamba", style_value)],
-        [Paragraph("Condición de muestra:", style_label), Paragraph("Sin precinto", style_value)],
+        [Paragraph("Tipo de muestra:", style_label), Paragraph(str(datos.get("tipo_muestra", "Mineral")), style_value)],
+        [Paragraph("Detalle del envase:", style_label), Paragraph(str(datos.get("detalle_envase", "1")), style_value)],
+        [Paragraph("Procedencia:", style_label), Paragraph(str(datos.get("procedencia", "Llacuabamba")), style_value)],
+        [Paragraph("Condición de muestra:", style_label), Paragraph(str(datos.get("condicion", "Sin precinto")), style_value)],
         [Paragraph("Fecha de recepción:", style_label), Paragraph(str(datos.get("fecha_recepcion", "")), style_value)],
         [Paragraph("Instrumento del análisis:", style_label), Paragraph("Gravimétrico", style_value)]
     ]
@@ -279,6 +288,7 @@ def calcular_fechas(fecha_rec_str):
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS muestras (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -289,18 +299,20 @@ def init_db():
             fecha_emision TEXT
         )
     ''')
-    columnas_necesarias = [
-        ("fecha_recepcion", "TEXT"),
-        ("fecha_emision", "TEXT"),
-        ("cliente", "TEXT"),
-        ("codigo", "TEXT"),
-        ("ley_au", "REAL")
-    ]
-    for col_nombre, col_tipo in columnas_necesarias:
-        try:
-            cursor.execute(f"ALTER TABLE muestras ADD COLUMN {col_nombre} {col_tipo}")
-        except sqlite3.OperationalError:
-            pass
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS recepciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            codigo TEXT,
+            cliente TEXT,
+            tipo_muestra TEXT,
+            detalle_envase TEXT,
+            procedencia TEXT,
+            condicion TEXT,
+            fecha_hora_recepcion TEXT,
+            estado TEXT DEFAULT 'PENDIENTE'
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -309,9 +321,87 @@ def home():
     index_path = os.path.join(BASE_DIR, "index.html")
     return FileResponse(index_path)
 
+@app.get("/recepcion")
+def vista_recepcion():
+    recepcion_path = os.path.join(BASE_DIR, "recepcion.html")
+    return FileResponse(recepcion_path)
+
+@app.post("/api/recepcion/guardar")
+async def guardar_recepcion(rec: RecepcionMuestra):
+    try:
+        fecha_hora_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO recepciones (codigo, cliente, tipo_muestra, detalle_envase, procedencia, condicion, fecha_hora_recepcion, estado)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDIENTE')
+        ''', (rec.codigo, rec.cliente, rec.tipo_muestra, rec.detalle_envase, rec.procedencia, rec.condicion, fecha_hora_actual))
+        conn.commit()
+        conn.close()
+        return {"status": "ok", "mensaje": "¡Muestra recepcionada con éxito!", "fecha_hora": fecha_hora_actual}
+    except Exception as e:
+        return {"status": "error", "mensaje": str(e)}
+
+@app.get("/api/recepciones/pendientes")
+def listar_recepciones_pendientes():
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM recepciones WHERE estado = 'PENDIENTE' ORDER BY id DESC")
+        filas = cursor.fetchall()
+        conn.close()
+        lista = [dict(fila) for fila in filas]
+        return {"status": "ok", "pendientes": lista}
+    except Exception as e:
+        return {"status": "error", "mensaje": str(e)}
+
+# NUEVO ENDPOINT: BUSCAR DATOS DE RECEPCIÓN POR CÓDIGO DE MUESTRA
+@app.get("/api/recepcion/buscar/{codigo}")
+def buscar_recepcion(codigo: str):
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM recepciones WHERE codigo = ? ORDER BY id DESC LIMIT 1", (codigo,))
+        fila = cursor.fetchone()
+        conn.close()
+        if fila:
+            return {"status": "ok", "recepcion": dict(fila)}
+        return {"status": "not_found", "mensaje": "No se encontró registro de recepción para este código."}
+    except Exception as e:
+        return {"status": "error", "mensaje": str(e)}
+
 @app.post("/guardar")
 async def guardar_muestra(muestra: Muestra):
     try:
+        # CONSULTAR DATOS DE LA RECEPCIÓN ASOCIADA AL CÓDIGO
+        detalles_recepcion = {
+            "tipo_muestra": "Mineral",
+            "detalle_envase": "1",
+            "procedencia": "Llacuabamba",
+            "condicion": "Sin precinto"
+        }
+        
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM recepciones WHERE codigo = ? ORDER BY id DESC LIMIT 1", (muestra.codigo,))
+            rec_row = cursor.fetchone()
+            if rec_row:
+                detalles_recepcion["tipo_muestra"] = rec_row["tipo_muestra"]
+                detalles_recepcion["detalle_envase"] = rec_row["detalle_envase"]
+                detalles_recepcion["procedencia"] = rec_row["procedencia"]
+                detalles_recepcion["condicion"] = rec_row["condicion"]
+                
+                # Marcar la recepción como PROCESADA
+                cursor.execute("UPDATE recepciones SET estado = 'PROCESADO' WHERE id = ?", (rec_row["id"],))
+                conn.commit()
+            conn.close()
+        except Exception as ex:
+            print("⚠️ Error al buscar datos de recepción:", ex)
+
         fecha_recepcion, fecha_emision = calcular_fechas(muestra.fecha_recepcion)
 
         if muestra.peso_muestra > 0:
@@ -359,7 +449,11 @@ async def guardar_muestra(muestra: Muestra):
             "ley_au_gr_tm": ley_au_final,
             "ley_au_oz_tc": ley_oz_tc,
             "fecha_recepcion": fecha_recepcion,
-            "fecha_emision": fecha_emision
+            "fecha_emision": fecha_emision,
+            "tipo_muestra": detalles_recepcion["tipo_muestra"],
+            "detalle_envase": detalles_recepcion["detalle_envase"],
+            "procedencia": detalles_recepcion["procedencia"],
+            "condicion": detalles_recepcion["condicion"]
         }
 
         rellenar_plantilla_excel(datos_excel, nombre_excel)
@@ -369,7 +463,7 @@ async def guardar_muestra(muestra: Muestra):
 
         return {
             "status": "ok", 
-            "mensaje": f"¡Informe N° {str(id_informe).zfill(6)} generado con éxito!", 
+            "mensaje": f"¡Informe N° {str(id_informe).zfill(6)} generado con éxito con datos de recepción!", 
             "ley_calculada": ley_au_final, 
             "nro_informe": id_informe,
             "archivo": nombre_pdf,

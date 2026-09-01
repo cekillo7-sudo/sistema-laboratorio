@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recepción de Muestras - Laboratorio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen p-6">
+    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
+        <div class="flex justify-between items-center mb-6 border-b pb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800">Módulo de Recepción de Muestras</h1>
+                <p class="text-sm text-slate-500">Control y trazabilidad de ingreso</p>
+            </div>
+            <a href="/" class="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Ir al Generador</a>
+        </div>
+
+        <div id="mensajeAlerta" class="hidden mb-4 p-4 rounded-lg text-sm font-medium"></div>
+
+        <form id="formRecepcion" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Código de Muestra</label>
+                <input type="text" id="codigo" required class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none" placeholder="Ej: M-001">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cliente</label>
+                <input type="text" id="cliente" required class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none" placeholder="Nombre del cliente">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Muestra</label>
+                <input type="text" id="tipo_muestra" value="Mineral" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Detalle del Envase</label>
+                <input type="text" id="detalle_envase" value="1" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Procedencia</label>
+                <input type="text" id="procedencia" value="Llacuabamba" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Condición de Muestra</label>
+                <input type="text" id="condicion" value="Sin precinto" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none">
+            </div>
+            <div class="md:col-span-2 mt-2">
+                <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-lg transition shadow">Registrar Recepción</button>
+            </div>
+        </form>
+
+        <h2 class="text-lg font-bold text-slate-800 mb-3">Muestras Pendientes de Análisis</h2>
+        <div class="overflow-x-auto border border-slate-200 rounded-lg">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="bg-slate-800 text-white">
+                        <th class="p-3">ID</th>
+                        <th class="p-3">Código</th>
+                        <th class="p-3">Cliente</th>
+                        <th class="p-3">Procedencia</th>
+                        <th class="p-3">Fecha / Hora</th>
+                        <th class="p-3">Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaPendientes" class="divide-y divide-slate-200">
+                    <tr><td colspan="6" class="p-4 text-center text-slate-500">Cargando registros...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function cargarPendientes() {
+            try {
+                const res = await fetch('/api/recepciones/pendientes');
+                const data = await res.json();
+                const tbody = document.getElementById('tablaPendientes');
+                tbody.innerHTML = '';
+                
+                if(data.status === 'ok' && data.pendientes.length > 0) {
+                    data.pendientes.forEach(item => {
+                        tbody.innerHTML += `
+                            <tr class="hover:bg-slate-50">
+                                <td class="p-3">${item.id}</td>
+                                <td class="p-3 font-semibold">${item.codigo}</td>
+                                <td class="p-3">${item.cliente}</td>
+                                <td class="p-3">${item.procedencia}</td>
+                                <td class="p-3">${item.fecha_hora_recepcion}</td>
+                                <td class="p-3"><span class="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full">${item.estado}</span></td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500">No hay muestras pendientes registradas.</td></tr>`;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        document.getElementById('formRecepcion').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                codigo: document.getElementById('codigo').value,
+                cliente: document.getElementById('cliente').value,
+                tipo_muestra: document.getElementById('tipo_muestra').value,
+                detalle_envase: document.getElementById('detalle_envase').value,
+                procedencia: document.getElementById('procedencia').value,
+                condicion: document.getElementById('condicion').value
+            };
+
+            const res = await fetch('/api/recepcion/guardar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            
+            const alerta = document.getElementById('mensajeAlerta');
+            alerta.classList.remove('hidden');
+            if(data.status === 'ok') {
+                alerta.className = "mb-4 p-4 rounded-lg text-sm font-medium bg-emerald-100 text-emerald-800";
+                alerta.innerText = data.mensaje;
+                document.getElementById('formRecepcion').reset();
+                cargarPendientes();
+            } else {
+                alerta.className = "mb-4 p-4 rounded-lg text-sm font-medium bg-rose-100 text-rose-800";
+                alerta.innerText = "Error: " + data.mensaje;
+            }
+        });
+
+        cargarPendientes();
+    </script>
+</body>
+</html>
