@@ -174,9 +174,10 @@ def generar_pdf_oficial(datos, pdf_path):
     elements.append(Paragraph("Los resultados de este certificado solo corresponden a la muestra recibida en nuestra oficina.", style_disclaimer))
     elements.append(Paragraph("Los remanentes de la muestra se guardaran por un periodo máximo de 1 semana.", style_disclaimer))
     
+    # Espacio ampliado para posicionar la firma más abajo de manera correcta
     elements.append(Spacer(1, 55))
 
-    # 7. Sello y firma
+    # 7. Sello y firma posicionados con el tamaño de letra reducido (fontSize=6)
     firma_path = os.path.join(BASE_DIR, "firma.png")
     sello_path = os.path.join(BASE_DIR, "sello.png")
 
@@ -212,6 +213,7 @@ def generar_pdf_oficial(datos, pdf_path):
     elements.append(Paragraph("Email: Lab.inka@gmail.com", style_footer_text))
 
     doc.build(elements)
+    print(f"📄 PDF generado exitosamente: {pdf_path}")
 
 def rellenar_plantilla_excel(datos, archivo_salida):
     plantilla_path = os.path.join(BASE_DIR, "plantilla.xlsx")
@@ -231,8 +233,10 @@ def rellenar_plantilla_excel(datos, archivo_salida):
             ws["E26"] = datos.get("ley_au_oz_tc", 0.0)
             ws["F26"] = "ND"
             wb.save(os.path.join(BASE_DIR, archivo_salida))
-        except Exception:
-            pass
+        except PermissionError:
+            print(f"⚠️ No se pudo guardar {archivo_salida} porque está abierto en Excel. Continuando con PDF...")
+        except Exception as e:
+            print(f"⚠️ Error en Excel: {e}")
 
 def enviar_reporte_correo(archivo_pdf_path, cliente, nro_informe, ley_au):
     try:
@@ -265,8 +269,10 @@ def enviar_reporte_correo(archivo_pdf_path, cliente, nro_informe, ley_au):
         server.login(CORREO_EMISOR, PASSWORD_CORREO)
         server.send_message(msg)
         server.quit()
+        print(f"📧 Correo enviado con el archivo PDF a {CORREO_DESTINO}")
         return True
-    except Exception:
+    except Exception as e:
+        print(f"❌ Error al enviar correo: {e}")
         return False
 
 def calcular_fechas(fecha_rec_str):
@@ -316,13 +322,6 @@ def init_db():
 def home():
     index_path = os.path.join(BASE_DIR, "index.html")
     return FileResponse(index_path)
-
-# -------------------------------------------------------------
-# NUEVO ENDPOINT DE SALUD PARA UPTIMEROBOT
-# -------------------------------------------------------------
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
 
 @app.post("/guardar")
 async def guardar_muestra(muestra: Muestra):
@@ -394,6 +393,7 @@ async def guardar_muestra(muestra: Muestra):
             "archivo": nombre_pdf
         }
     except Exception as e:
+        print("❌ Error general en /guardar:", str(e))
         return {
             "status": "error",
             "mensaje": f"Error en el servidor: {str(e)}"
@@ -407,7 +407,11 @@ def descargar_reporte(nombre_archivo: str):
         return FileResponse(ruta_archivo, filename=nombre_archivo, media_type=media)
     return {"status": "error", "mensaje": "Archivo no encontrado"}
 
+# Bloque adaptado para iniciar localmente o con el puerto dinámico de la nube (Render)
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
+    @app.get("/health")
+def health_check():
+    return {"status": "ok"}
