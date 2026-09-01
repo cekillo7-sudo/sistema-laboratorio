@@ -95,7 +95,6 @@ def generar_pdf_oficial(datos, pdf_path):
     elements.append(Paragraph(f"INFORME DE ENSAYO-N° {nro_informe}", style_title))
     elements.append(Spacer(1, 20))
 
-    # DATOS DINÁMICOS DESDE LA RECEPCIÓN
     info_data = [
         [Paragraph("Cliente:", style_label), Paragraph(str(datos.get("cliente", "")), style_value)],
         [Paragraph("Tipo de muestra:", style_label), Paragraph(str(datos.get("tipo_muestra", "Mineral")), style_value)],
@@ -316,8 +315,15 @@ def init_db():
     conn.commit()
     conn.close()
 
+# RUTA RAÍZ CAMBIADA PARA ABRIR DIRECTAMENTE LA RECEPCIÓN
 @app.get("/")
 def home():
+    recepcion_path = os.path.join(BASE_DIR, "recepcion.html")
+    return FileResponse(recepcion_path)
+
+# NUEVA RUTA PARA ACCEDER AL GENERADOR DE INFORMES MANUALMENTE
+@app.get("/generador")
+def vista_generador():
     index_path = os.path.join(BASE_DIR, "index.html")
     return FileResponse(index_path)
 
@@ -356,7 +362,6 @@ def listar_recepciones_pendientes():
     except Exception as e:
         return {"status": "error", "mensaje": str(e)}
 
-# NUEVO ENDPOINT: BUSCAR DATOS DE RECEPCIÓN POR CÓDIGO DE MUESTRA
 @app.get("/api/recepcion/buscar/{codigo}")
 def buscar_recepcion(codigo: str):
     try:
@@ -375,7 +380,6 @@ def buscar_recepcion(codigo: str):
 @app.post("/guardar")
 async def guardar_muestra(muestra: Muestra):
     try:
-        # CONSULTAR DATOS DE LA RECEPCIÓN ASOCIADA AL CÓDIGO
         detalles_recepcion = {
             "tipo_muestra": "Mineral",
             "detalle_envase": "1",
@@ -395,7 +399,6 @@ async def guardar_muestra(muestra: Muestra):
                 detalles_recepcion["procedencia"] = rec_row["procedencia"]
                 detalles_recepcion["condicion"] = rec_row["condicion"]
                 
-                # Marcar la recepción como PROCESADA
                 cursor.execute("UPDATE recepciones SET estado = 'PROCESADO' WHERE id = ?", (rec_row["id"],))
                 conn.commit()
             conn.close()
