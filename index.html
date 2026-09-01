@@ -10,7 +10,7 @@
         h2 { text-align: center; color: #1F4E79; }
         .form-group { margin-bottom: 15px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; color: #333; }
-        input { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        input { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
         button { width: 100%; background-color: #1F4E79; color: white; padding: 12px; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         button:hover { background-color: #153754; }
         button:disabled { background-color: #94A3B8; cursor: not-allowed; }
@@ -34,7 +34,7 @@
 
         <div class="form-group">
             <label>Identificación / Código de Muestra:</label>
-            <input type="text" id="codigo" placeholder="Ej. Jr 6888" required>
+            <input type="text" id="codigo" placeholder="Ej. JR-1769-cuarzosa" required>
         </div>
 
         <div class="form-group">
@@ -43,18 +43,18 @@
         </div>
 
         <div class="form-group">
-            <label>Peso Au Balanza Analítica (g):</label>
-            <input type="number" step="any" id="peso_au" placeholder="0.05" required>
+            <label>Peso Au Balanza Analítica (g) [5 decimales]:</label>
+            <input type="text" inputmode="decimal" id="peso_au" placeholder="0.00012" required>
         </div>
 
         <div class="form-group">
-            <label>Peso Muestra (g):</label>
-            <input type="number" step="any" id="peso_muestra" value="10.0" placeholder="10.0" required>
+            <label>Peso Muestra (g) [2 decimales]:</label>
+            <input type="text" inputmode="decimal" id="peso_muestra" value="10.00" placeholder="10.00" required>
         </div>
 
         <div class="form-group">
             <label>Porcentaje (%):</label>
-            <input type="number" step="any" id="porcentaje" value="100" required>
+            <input type="text" inputmode="decimal" id="porcentaje" value="100" required>
         </div>
 
         <button type="submit" id="btnGuardar">💾 Guardar y Generar Informe</button>
@@ -78,9 +78,13 @@
         const cliente = document.getElementById("cliente").value.trim();
         const codigo = document.getElementById("codigo").value.trim();
         const fecha_recepcion = document.getElementById("fecha_recepcion").value;
-        const peso_au = parseFloat(document.getElementById("peso_au").value) || 0;
-        const peso_muestra = parseFloat(document.getElementById("peso_muestra").value) || 10.0;
-        const porcentaje = parseFloat(document.getElementById("porcentaje").value) || 100;
+        
+        // Reemplazar comas por puntos por si el teclado del celular escribe coma decimal (,)
+        const parseNum = (val) => parseFloat(val.replace(',', '.')) || 0;
+
+        const peso_au = parseNum(document.getElementById("peso_au").value);
+        const peso_muestra = parseNum(document.getElementById("peso_muestra").value) || 10.0;
+        const porcentaje = parseNum(document.getElementById("porcentaje").value) || 100;
 
         if (!cliente || !codigo) {
             alert("Por favor completa todos los campos requeridos.");
