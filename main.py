@@ -84,7 +84,6 @@ def generar_pdf_oficial(datos, pdf_path):
         elements.append(Paragraph("<font size=15 color='#C59B27'><b>INKA GOLD SILVER S.A.C.</b></font>", style_title))
 
     elements.append(Spacer(1, 20))
-
     elements.append(Paragraph(f"INFORME DE ENSAYO-N° {nro_informe}", style_title))
     elements.append(Spacer(1, 20))
 
@@ -204,7 +203,6 @@ def generar_pdf_oficial(datos, pdf_path):
     elements.append(Paragraph("Email: Lab.inka@gmail.com", style_footer_text))
 
     doc.build(elements)
-    print(f"📄 PDF generado exitosamente: {pdf_path}")
 
 def rellenar_plantilla_excel(datos, archivo_salida):
     plantilla_path = os.path.join(BASE_DIR, "plantilla.xlsx")
@@ -224,8 +222,6 @@ def rellenar_plantilla_excel(datos, archivo_salida):
             ws["E26"] = datos.get("ley_au_oz_tc", 0.0)
             ws["F26"] = "ND"
             wb.save(os.path.join(BASE_DIR, archivo_salida))
-        except PermissionError:
-            print(f"⚠️ No se pudo guardar {archivo_salida} porque está abierto en Excel. Continuando con PDF...")
         except Exception as e:
             print(f"⚠️ Error en Excel: {e}")
 
@@ -238,13 +234,10 @@ def enviar_reporte_correo(archivo_pdf_path, cliente, nro_informe, ley_au):
 
         cuerpo = f"""
         Hola,
-
         Se adjunta el certificado oficial de ensayo del laboratorio en formato PDF:
-
         • Cliente: {cliente}
         • N° de Informe: {str(nro_informe).zfill(6)}
         • Ley Au Calculada: {ley_au} gr/TM
-
         Saludos,
         Sistema de Control de Laboratorio Químico
         """
@@ -260,35 +253,25 @@ def enviar_reporte_correo(archivo_pdf_path, cliente, nro_informe, ley_au):
         server.login(CORREO_EMISOR, PASSWORD_CORREO)
         server.send_message(msg)
         server.quit()
-        print(f"📧 Correo enviado con el archivo PDF a {CORREO_DESTINO}")
         return True
     except Exception as e:
-        print(f"❌ Error al enviar correo: {e}")
+        print(f"❌ Error al enviar correo (Normal en Render si bloquea puertos externos): {e}")
         return False
 
 def calcular_fechas(fecha_rec_str):
     dt_rec = None
     formatos = ["%Y-%m-%dT%H:%M", "%d/%m/%Y, %H:%M", "%d/%m/%Y %H:%M", "%Y-%m-%d %H:%M:%S"]
-    
     for fmt in formatos:
         try:
             dt_rec = datetime.strptime(fecha_rec_str.strip(), fmt)
             break
         except Exception:
             pass
-
     if not dt_rec:
         dt_rec = datetime.now()
 
     str_recepcion_excel = dt_rec.strftime("%d/%m/%Y")
-
-    if 6 <= dt_rec.hour < 10:
-        emision_dt = dt_rec
-    elif dt_rec.hour < 6:
-        emision_dt = dt_rec
-    else:
-        emision_dt = dt_rec + timedelta(days=1)
-
+    emision_dt = dt_rec if 6 <= dt_rec.hour < 10 or dt_rec.hour < 6 else dt_rec + timedelta(days=1)
     str_emision_excel = emision_dt.strftime("%d/%m/%Y")
     return str_recepcion_excel, str_emision_excel
 
@@ -306,7 +289,6 @@ def init_db():
             fecha_emision TEXT
         )
     ''')
-    
     columnas_necesarias = [
         ("fecha_recepcion", "TEXT"),
         ("fecha_emision", "TEXT"),
@@ -319,7 +301,6 @@ def init_db():
             cursor.execute(f"ALTER TABLE muestras ADD COLUMN {col_nombre} {col_tipo}")
         except sqlite3.OperationalError:
             pass
-
     conn.commit()
     conn.close()
 
@@ -382,20 +363,17 @@ async def guardar_muestra(muestra: Muestra):
         }
 
         rellenar_plantilla_excel(datos_excel, nombre_excel)
-
         pdf_full_path = os.path.join(BASE_DIR, nombre_pdf)
         generar_pdf_oficial(datos_excel, pdf_full_path)
-
         enviar_reporte_correo(pdf_full_path, muestra.cliente, id_informe, ley_au_final)
 
         return {
             "status": "ok", 
-            "mensaje": f"Certificado PDF generado y enviado: {nombre_pdf}", 
+            "mensaje": f"¡Informe N° {str(id_informe).zfill(6)} generado con éxito!", 
             "ley_calculada": ley_au_final, 
             "nro_informe": id_informe,
-            "fecha_recepcion": fecha_recepcion,
-            "fecha_emision": fecha_emision,
-            "archivo": nombre_pdf
+            "archivo": nombre_pdf,
+            "url_descarga": f"/descargar/{nombre_pdf}"
         }
     except Exception as e:
         print("❌ Error general en /guardar:", str(e))
