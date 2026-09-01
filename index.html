@@ -7,7 +7,7 @@
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f7f6; }
         .container { max-width: 500px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0px 0px 10px rgba(0,0,0,0.1); margin: auto; }
-        h2 { text-align: center; color: #1F4E79; }
+        h2 { text-align: center; color: #1F4E79; margin-top: 10px; }
         .form-group { margin-bottom: 15px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; color: #333; }
         input { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
@@ -20,11 +20,16 @@
         .download-btn { display: inline-block; margin-top: 10px; padding: 10px 18px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; }
         .download-btn:hover { background-color: #218838; }
         .auto-hint { font-size: 12px; color: #0284c7; margin-top: 3px; display: block; }
+        .nav-btn { display: inline-block; background: #e2e8f0; color: #1F4E79; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 14px; margin-bottom: 10px; }
+        .nav-btn:hover { background: #cbd5e1; }
     </style>
 </head>
 <body>
 
 <div class="container">
+    <div style="text-align: center;">
+        <a href="/recepcion" class="nav-btn">📋 Ir al Módulo de Recepción</a>
+    </div>
     <h2>Registro de Muestra de Ensayo</h2>
     
     <form id="sampleForm" onsubmit="event.preventDefault(); enviarDatos();">
