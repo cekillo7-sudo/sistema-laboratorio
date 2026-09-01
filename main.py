@@ -248,14 +248,15 @@ def enviar_reporte_correo(archivo_pdf_path, cliente, nro_informe, ley_au):
             adjunto.add_header('Content-Disposition', 'attachment', filename=os.path.basename(archivo_pdf_path))
             msg.attach(adjunto)
 
-        server = smtplib.SMTP('smtp.gmail.com', 587)
+        # Timeout de 5 segundos para evitar bloqueos si Render restringe el puerto SMTP
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=5)
         server.starttls()
         server.login(CORREO_EMISOR, PASSWORD_CORREO)
         server.send_message(msg)
         server.quit()
         return True
     except Exception as e:
-        print(f"❌ Error al enviar correo (Normal en Render si bloquea puertos externos): {e}")
+        print(f"⚠️ Correo no enviado (Render bloquea SMTP externo): {e}")
         return False
 
 def calcular_fechas(fecha_rec_str):
@@ -319,7 +320,6 @@ async def guardar_muestra(muestra: Muestra):
         else:
             ley_au_100 = 0.0
 
-        # CORRECCIÓN EXACTA DE PORCENTAJE (Funciona perfectamente al 90%, 100%, etc.)
         factor = muestra.porcentaje / 100.0
         ley_au_final = round(ley_au_100 * factor, 2)
         ley_oz_tc = round(ley_au_final / 34.2857, 2)
