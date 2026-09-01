@@ -307,7 +307,6 @@ def init_db():
         )
     ''')
     
-    # Migración automática para asegurar columnas faltantes en producción
     columnas_necesarias = [
         ("fecha_recepcion", "TEXT"),
         ("fecha_emision", "TEXT"),
@@ -319,7 +318,7 @@ def init_db():
         try:
             cursor.execute(f"ALTER TABLE muestras ADD COLUMN {col_nombre} {col_tipo}")
         except sqlite3.OperationalError:
-            pass # La columna ya existe
+            pass
 
     conn.commit()
     conn.close()
