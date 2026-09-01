@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratorio Químico Metalúrgico</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f7f6; }
+        .container { max-width: 500px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0px 0px 10px rgba(0,0,0,0.1); margin: auto; }
+        h2 { text-align: center; color: #1F4E79; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #333; }
+        input { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        button { width: 100%; background-color: #1F4E79; color: white; padding: 12px; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:hover { background-color: #153754; }
+        .alert { margin-top: 15px; padding: 12px; border-radius: 4px; text-align: center; display: none; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .download-btn { display: inline-block; margin-top: 10px; padding: 10px 18px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; }
+        .download-btn:hover { background-color: #218838; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Registro de Muestra de Ensayo</h2>
+    
+    <form id="sampleForm">
+        <div class="form-group">
+            <label>Cliente:</label>
+            <input type="text" id="cliente" placeholder="Ej. Ana" required>
+        </div>
+
+        <div class="form-group">
+            <label>Identificación / Código de Muestra:</label>
+            <input type="text" id="codigo" placeholder="Ej. JR-1769-Ana" required>
+        </div>
+
+        <div class="form-group">
+            <label>Fecha y Hora de Recepción:</label>
+            <input type="datetime-local" id="fecha_recepcion" required>
+        </div>
+
+        <div class="form-group">
+            <label>Peso Au Balanza Analítica (g):</label>
+            <input type="number" step="0.00001" id="peso_au" placeholder="0.00114" required>
+        </div>
+
+        <div class="form-group">
+            <label>Peso Muestra (g):</label>
+            <input type="number" step="0.01" id="peso_muestra" value="10.05" placeholder="10.05" required>
+        </div>
+
+        <div class="form-group">
+            <label>Porcentaje (%):</label>
+            <input type="number" step="any" id="porcentaje" value="90" required>
+        </div>
+
+        <button type="button" onclick="enviarDatos()">💾 Guardar y Generar Informe</button>
+    </form>
+
+    <div id="mensaje" class="alert"></div>
+</div>
+
+<script>
+    // Asigna la fecha y hora actual por defecto al cargar la página
+    window.onload = function() {
+        const ahora = new Date();
+        ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
+        document.getElementById("fecha_recepcion").value = ahora.toISOString().slice(0, 16);
+    };
+
+    async function enviarDatos() {
+        const mensajeDiv = document.getElementById("mensaje");
+        mensajeDiv.style.display = "none";
+
+        const datos = {
+            cliente: document.getElementById("cliente").value,
+            codigo: document.getElementById("codigo").value,
+            fecha_recepcion: document.getElementById("fecha_recepcion").value,
+            peso_au: parseFloat(document.getElementById("peso_au").value) || 0,
+            peso_muestra: parseFloat(document.getElementById("peso_muestra").value) || 10.0,
+            porcentaje: parseFloat(document.getElementById("porcentaje").value) || 100
+        };
+
+        try {
+            const respuesta = await fetch("/guardar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(datos)
+            });
+
+            const resultado = await respuesta.json();
+
+            if (resultado.status === "ok") {
+                mensajeDiv.className = "alert success";
+                mensajeDiv.innerHTML = `
+                    ✅ <strong>${resultado.mensaje}</strong><br>
+                    <strong>Recepción:</strong> ${resultado.fecha_recepcion}<br>
+                    <strong>Emisión:</strong> ${resultado.fecha_emision}<br>
+                    Ley Au: <strong>${resultado.ley_calculada} gr/tm</strong><br><br>
+                    <a class="download-btn" href="/descargar/${resultado.archivo}" target="_blank">📥 Descargar ${resultado.archivo}</a>
+                `;
+            } else {
+                mensajeDiv.className = "alert error";
+                mensajeDiv.innerHTML = `❌ ${resultado.mensaje}`;
+            }
+            mensajeDiv.style.display = "block";
+        } catch (error) {
+            mensajeDiv.className = "alert error";
+            mensajeDiv.innerHTML = "❌ Error en el servidor: " + error.message;
+            mensajeDiv.style.display = "block";
+        }
+    }
+</script>
+
+</body>
+</html>
