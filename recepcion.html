@@ -17,7 +17,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-100 min-h-screen p-6">
-    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
+    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6 mb-8">
         <div class="flex justify-between items-center mb-6 border-b pb-4">
             <div>
                 <h1 class="text-2xl font-bold text-slate-800">Módulo de Recepción de Muestras</h1>
@@ -59,10 +59,27 @@
         </form>
 
         <h2 class="text-lg font-bold text-slate-800 mb-3">Muestras Pendientes de Análisis</h2>
-        <div class="overflow-x-auto border border-slate-200 rounded-lg">
+        
+        <!-- Sección de Filtros Avanzados -->
+        <div class="mb-4 bg-slate-50 p-4 rounded-lg border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Buscar (Código / Cliente / Procedencia)</label>
+                <input type="text" id="filtroTexto" placeholder="Escribe para buscar..." class="w-full border border-slate-300 rounded-lg p-2 text-sm outline-none bg-white" oninput="cargarPendientes()">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Desde Fecha</label>
+                <input type="date" id="filtroDesde" class="w-full border border-slate-300 rounded-lg p-2 text-sm outline-none bg-white" onchange="cargarPendientes()">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Hasta Fecha</label>
+                <input type="date" id="filtroHasta" class="w-full border border-slate-300 rounded-lg p-2 text-sm outline-none bg-white" onchange="cargarPendientes()">
+            </div>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-200 rounded-lg bg-white shadow-sm mb-8">
             <table class="w-full text-left border-collapse text-sm">
                 <thead>
-                    <tr class="bg-slate-800 text-white">
+                    <tr class="bg-slate-100 text-slate-700 text-xs uppercase font-bold border-b border-slate-200">
                         <th class="p-3">ID</th>
                         <th class="p-3">Código</th>
                         <th class="p-3">Cliente</th>
@@ -71,17 +88,52 @@
                         <th class="p-3">Estado</th>
                     </tr>
                 </thead>
-                <tbody id="tablaPendientes" class="divide-y divide-slate-200">
+                <tbody id="tablaPendientes" class="divide-y divide-slate-100 text-sm">
                     <tr><td colspan="6" class="p-4 text-center text-slate-500">Cargando registros...</td></tr>
                 </tbody>
             </table>
+        </div>
+
+        <!-- SECCIÓN: HISTORIAL DE INFORMES EMITIDOS -->
+        <div class="border-t pt-6">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-3">
+                <h2 class="text-lg font-bold text-slate-800">📋 Historial y Panel de Informes Emitidos</h2>
+                <input type="text" id="filtroHistorial" placeholder="Buscar por código o cliente..." class="border border-slate-300 rounded-lg p-2 text-sm outline-none bg-white w-full md:w-72 mt-2 md:mt-0" oninput="cargarHistorialInformes()">
+            </div>
+            
+            <div class="overflow-x-auto border border-slate-200 rounded-lg bg-white shadow-sm">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-slate-800 text-white text-xs uppercase font-bold border-b border-slate-700">
+                            <th class="p-3">N° Informe</th>
+                            <th class="p-3">Código Muestra</th>
+                            <th class="p-3">Cliente</th>
+                            <th class="p-3">Ley Au (gr/TM)</th>
+                            <th class="p-3">Fecha Emisión</th>
+                            <th class="p-3 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaHistorial" class="divide-y divide-slate-100 text-sm">
+                        <tr><td colspan="6" class="p-4 text-center text-slate-500">Cargando historial de informes...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <script>
         async function cargarPendientes() {
+            const texto = document.getElementById('filtroTexto').value;
+            const desde = document.getElementById('filtroDesde').value;
+            const hasta = document.getElementById('filtroHasta').value;
+
+            let url = '/api/recepciones/pendientes?';
+            if (texto) url += `q=${encodeURIComponent(texto)}&`;
+            if (desde) url += `fecha_inicio=${desde}&`;
+            if (hasta) url += `fecha_fin=${hasta}&`;
+
             try {
-                const res = await fetch('/api/recepciones/pendientes');
+                const res = await fetch(url);
                 const data = await res.json();
                 const tbody = document.getElementById('tablaPendientes');
                 tbody.innerHTML = '';
@@ -91,19 +143,62 @@
                         tbody.innerHTML += `
                             <tr class="hover:bg-slate-50">
                                 <td class="p-3">${item.id}</td>
-                                <td class="p-3 font-semibold">${item.codigo}</td>
+                                <td class="p-3 font-semibold text-slate-800">${item.codigo}</td>
                                 <td class="p-3">${item.cliente}</td>
                                 <td class="p-3">${item.procedencia}</td>
-                                <td class="p-3">${item.fecha_hora_recepcion}</td>
-                                <td class="p-3"><span class="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full">${item.estado}</span></td>
+                                <td class="p-3 text-slate-500">${item.fecha_hora_recepcion}</td>
+                                <td class="p-3"><span class="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full">${item.estado || 'PENDIENTE'}</span></td>
                             </tr>
                         `;
                     });
                 } else {
-                    tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500">No hay muestras pendientes registradas.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500">No se encontraron muestras pendientes con esos filtros.</td></tr>`;
                 }
             } catch (e) {
-                console.error(e);
+                console.error("Error al cargar pendientes:", e);
+            }
+        }
+
+        async function cargarHistorialInformes() {
+            const texto = document.getElementById('filtroHistorial').value;
+            let url = '/api/informes/historial';
+            if (texto) {
+                url += `?q=${encodeURIComponent(texto)}`;
+            }
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                const tbody = document.getElementById('tablaHistorial');
+                tbody.innerHTML = '';
+
+                if(data.status === 'ok' && data.historial.length > 0) {
+                    data.historial.forEach(item => {
+                        tbody.innerHTML += `
+                            <tr class="hover:bg-slate-50">
+                                <td class="p-3 font-bold text-amber-600">N° ${item.nro_informe_str}</td>
+                                <td class="p-3 font-semibold text-slate-800">${item.codigo}</td>
+                                <td class="p-3">${item.cliente}</td>
+                                <td class="p-3 font-bold text-slate-700">${item.ley_au} gr/TM</td>
+                                <td class="p-3 text-slate-500">${item.fecha_emision || '-'}</td>
+                                <td class="p-3 text-center">
+                                    <div class="inline-flex items-center gap-1.5">
+                                        <a href="${item.url_pdf}" target="_blank" class="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 shadow-sm">
+                                            📄 PDF
+                                        </a>
+                                        <a href="${item.url_excel}" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 shadow-sm">
+                                            📊 Excel
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500">No hay informes emitidos registrados.</td></tr>`;
+                }
+            } catch (e) {
+                console.error("Error al cargar historial:", e);
             }
         }
 
@@ -132,13 +227,17 @@
                 alerta.innerText = data.mensaje;
                 document.getElementById('formRecepcion').reset();
                 cargarPendientes();
+                cargarHistorialInformes();
             } else {
                 alerta.className = "mb-4 p-4 rounded-lg text-sm font-medium bg-rose-100 text-rose-800";
                 alerta.innerText = "Error: " + data.mensaje;
             }
         });
 
-        cargarPendientes();
+        document.addEventListener("DOMContentLoaded", () => {
+            cargarPendientes();
+            cargarHistorialInformes();
+        });
     </script>
 </body>
 </html>

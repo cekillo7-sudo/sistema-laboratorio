@@ -1,6 +1,7 @@
+import io
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import sqlite3
 import openpyxl
@@ -263,7 +264,7 @@ def enviar_reporte_correo(archivo_pdf_path, cliente, nro_informe, ley_au):
         server.quit()
         return True
     except Exception as e:
-        print(f"⚠️ Correo no enviado (Render bloquea SMTP externo): {e}")
+        print(f"⚠️ Correo no enviado (Render bloquea SMTP externo o credenciales): {e}")
         return False
 
 def calcular_fechas(fecha_rec_str):
@@ -315,13 +316,14 @@ def init_db():
     conn.commit()
     conn.close()
 
-# RUTA RAÍZ CAMBIADA PARA ABRIR DIRECTAMENTE LA RECEPCIÓN
 @app.get("/")
 def home():
+    index_path = os.path.join(BASE_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
     recepcion_path = os.path.join(BASE_DIR, "recepcion.html")
     return FileResponse(recepcion_path)
 
-# NUEVA RUTA PARA ACCEDER AL GENERADOR DE INFORMES MANUALMENTE
 @app.get("/generador")
 def vista_generador():
     index_path = os.path.join(BASE_DIR, "index.html")
@@ -331,6 +333,13 @@ def vista_generador():
 def vista_recepcion():
     recepcion_path = os.path.join(BASE_DIR, "recepcion.html")
     return FileResponse(recepcion_path)
+
+@app.get("/manifest.json")
+def serve_manifest():
+    manifest_path = os.path.join(BASE_DIR, "manifest.json")
+    if os.path.exists(manifest_path):
+        return FileResponse(manifest_path, media_type="application/json")
+    return {"status": "error", "mensaje": "Manifest not found"}
 
 @app.post("/api/recepcion/guardar")
 async def guardar_recepcion(rec: RecepcionMuestra):
@@ -349,12 +358,22 @@ async def guardar_recepcion(rec: RecepcionMuestra):
         return {"status": "error", "mensaje": str(e)}
 
 @app.get("/api/recepciones/pendientes")
-def listar_recepciones_pendientes():
+def listar_recepciones_pendientes(q: str = None):
     try:
         conn = sqlite3.connect(DB_NAME)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM recepciones WHERE estado = 'PENDIENTE' ORDER BY id DESC")
+        
+        query = "SELECT * FROM recepciones WHERE (estado = 'PENDIENTE' OR estado IS NULL)"
+        params = []
+        
+        if q and q.strip():
+            query += " AND (codigo LIKE ? OR cliente LIKE ? OR procedencia LIKE ?)"
+            params.extend([f"%{q.strip()}%", f"%{q.strip()}%", f"%{q.strip()}%"])
+            
+        query += " ORDER BY id DESC"
+        
+        cursor.execute(query, params)
         filas = cursor.fetchall()
         conn.close()
         lista = [dict(fila) for fila in filas]
@@ -374,6 +393,69 @@ def buscar_recepcion(codigo: str):
         if fila:
             return {"status": "ok", "recepcion": dict(fila)}
         return {"status": "not_found", "mensaje": "No se encontró registro de recepción para este código."}
+    except Exception as e:
+        return {"status": "error", "mensaje": str(e)}
+
+@app.get('/api/estadisticas')
+def obtener_estadisticas():
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT COUNT(*) FROM recepciones")
+        total_muestras = cursor.fetchone()[0] or 0
+        
+        cursor.execute("SELECT COUNT(*) FROM recepciones WHERE estado = 'PENDIENTE' OR estado IS NULL")
+        muestras_pendientes = cursor.fetchone()[0] or 0
+        
+        cursor.execute("SELECT COUNT(*) FROM muestras")
+        informes_emitidos = cursor.fetchone()[0] or 0
+        
+        cursor.execute("SELECT AVG(ley_au) FROM muestras")
+        res_avg = cursor.fetchone()[0]
+        promedio_ley_au = round(res_avg, 2) if res_avg else 0.0
+        
+        conn.close()
+        
+        return {
+            "status": "ok",
+            "stats": {
+                "total_muestras": total_muestras,
+                "muestras_pendientes": muestras_pendientes,
+                "informes_emitidos": informes_emitidos,
+                "promedio_ley_au": promedio_ley_au
+            }
+        }
+    except Exception as e:
+        return {"status": "error", "mensaje": str(e)}
+
+@app.get("/api/exportar/excel")
+def exportar_historial_excel():
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, codigo, cliente, ley_au, fecha_recepcion, fecha_emision FROM muestras ORDER BY id DESC")
+        filas = cursor.fetchall()
+        conn.close()
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Historial de Ensayos"
+
+        ws.append(["N° Informe", "Código", "Cliente", "Ley Au (gr/TM)", "Fecha Recepción", "Fecha Emisión"])
+
+        for fila in filas:
+            ws.append(list(fila))
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=historial_laboratorio.xlsx"}
+        )
     except Exception as e:
         return {"status": "error", "mensaje": str(e)}
 
@@ -499,6 +581,73 @@ def descargar_reporte(nombre_archivo: str):
         pass
         
     return {"status": "error", "mensaje": "Archivo no encontrado en el servidor. Intenta generar el informe nuevamente."}
+
+@app.get("/api/informes/historial")
+def listar_historial_informes(q: str = None):
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        query = "SELECT id, codigo, cliente, ley_au, fecha_emision FROM muestras"
+        params = []
+        
+        if q and q.strip():
+            query += " WHERE codigo LIKE ? OR cliente LIKE ?"
+            params.extend([f"%{q.strip()}%", f"%{q.strip()}%"])
+            
+        query += " ORDER BY id DESC"
+        
+        cursor.execute(query, params)
+        filas = cursor.fetchall()
+        
+        historial = []
+        fecha_actual_default = datetime.now().strftime("%d/%m/%Y")
+        
+        for fila in filas:
+            f_dict = dict(fila)
+            id_inf = f_dict["id"]
+            cliente_limpio = re.sub(r'[^a-zA-Z0-9_-]', '_', str(f_dict["cliente"]).strip()).upper() if f_dict["cliente"] else "CLIENTE"
+            nro_reporte_archivo = id_inf + 1701
+            
+            nombre_pdf = f"REPORTE.{nro_reporte_archivo}.{cliente_limpio}.pdf"
+            nombre_excel = f"REPORTE.{nro_reporte_archivo}.{cliente_limpio}.xlsx"
+            
+            f_dict["nro_informe_str"] = str(id_inf).zfill(6)
+            f_dict["url_pdf"] = f"/descargar/{nombre_pdf}"
+            f_dict["url_excel"] = f"/descargar/{nombre_excel}"
+            
+            if "ley_au" not in f_dict or f_dict["ley_au"] is None:
+                f_dict["ley_au"] = 0.0
+                
+            if not f_dict.get("fecha_emision") or str(f_dict["fecha_emision"]).strip() in ["", "-"]:
+                f_dict["fecha_emision"] = fecha_actual_default
+                
+            historial.append(f_dict)
+            
+        if not historial:
+            query_rec = "SELECT id, codigo, cliente, '0.0' as ley_au, fecha_hora_recepcion as fecha_emision FROM recepciones"
+            params_rec = []
+            if q and q.strip():
+                query_rec += " WHERE codigo LIKE ? OR cliente LIKE ?"
+                params_rec.extend([f"%{q.strip()}%", f"%{q.strip()}%"])
+            query_rec += " ORDER BY id DESC"
+            
+            cursor.execute(query_rec, params_rec)
+            filas_rec = cursor.fetchall()
+            for fila in filas_rec:
+                f_dict = dict(fila)
+                f_dict["nro_informe_str"] = str(f_dict["id"]).zfill(6)
+                f_dict["url_pdf"] = "#" 
+                f_dict["url_excel"] = "#"
+                if not f_dict.get("fecha_emision") or str(f_dict["fecha_emision"]).strip() in ["", "-"]:
+                    f_dict["fecha_emision"] = fecha_actual_default
+                historial.append(f_dict)
+
+        conn.close()
+        return {"status": "ok", "historial": historial}
+    except Exception as e:
+        return {"status": "error", "mensaje": str(e)}
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():

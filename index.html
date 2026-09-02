@@ -16,11 +16,11 @@
 
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f7f6; }
-        .container { max-width: 500px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0px 0px 10px rgba(0,0,0,0.1); margin: auto; }
+        .container { max-width: 700px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0px 0px 10px rgba(0,0,0,0.1); margin: auto; }
         h2 { text-align: center; color: #1F4E79; margin-top: 10px; }
         .form-group { margin-bottom: 15px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; color: #333; }
-        input { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        input, select { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
         button { width: 100%; background-color: #1F4E79; color: white; padding: 12px; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         button:hover { background-color: #153754; }
         button:disabled { background-color: #94A3B8; cursor: not-allowed; }
@@ -30,22 +30,38 @@
         .download-btn { display: inline-block; margin-top: 10px; padding: 10px 18px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; }
         .download-btn:hover { background-color: #218838; }
         .auto-hint { font-size: 12px; color: #0284c7; margin-top: 3px; display: block; }
-        .nav-btn { display: inline-block; background: #e2e8f0; color: #1F4E79; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 14px; margin-bottom: 10px; }
+        .nav-container { display: flex; justify-content: space-between; margin-bottom: 15px; }
+        .nav-btn { display: inline-block; background: #e2e8f0; color: #1F4E79; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 14px; }
         .nav-btn:hover { background: #cbd5e1; }
+        
+        /* Estilos para la sección de historial / búsqueda */
+        .search-box-container { margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 20px; }
+        .search-bar-row { display: flex; gap: 10px; margin-bottom: 15px; }
+        .search-bar-row input { flex: 1; }
+        .search-bar-row button { width: auto; margin-top: 0; padding: 10px 20px; }
+        
+        .table-responsive { width: 100%; overflow-x: auto; }
+        table.historial-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px; }
+        table.historial-table th, table.historial-table td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
+        table.historial-table th { background-color: #1E293B; color: white; }
+        table.historial-table tr:nth-child(even) { background-color: #f8fafc; }
+        .btn-small { padding: 4px 8px; background-color: #28a745; color: white; border-radius: 3px; text-decoration: none; font-size: 12px; font-weight: bold; display: inline-block; }
+        .btn-small:hover { background-color: #218838; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div style="text-align: center;">
-        <a href="/recepcion" class="nav-btn">📋 Ir al Módulo de Recepción</a>
+    <div class="nav-container">
+        <a href="/recepcion" class="nav-btn">📋 Módulo de Recepción</a>
+        <a href="#historial-section" class="nav-btn" onclick="cargarHistorial()">🔍 Ver Historial / Buscar</a>
     </div>
+    
     <h2>Registro de Muestra de Ensayo</h2>
     
     <form id="sampleForm" onsubmit="event.preventDefault(); enviarDatos();">
         <div class="form-group">
             <label>Identificación / Código de Muestra:</label>
-            <!-- Al salir de este campo (onblur), busca automáticamente en la recepción -->
             <input type="text" id="codigo" placeholder="Ej. JR-1769-cuarzosa" required onblur="buscarRecepcionAutomatica()">
             <small class="auto-hint">💡 Al salir del campo se cargará el cliente y la fecha automáticamente.</small>
         </div>
@@ -79,6 +95,34 @@
     </form>
 
     <div id="mensaje" class="alert"></div>
+
+    <!-- Sección de Historial y Buscador de Informes -->
+    <div class="search-box-container" id="historial-section">
+        <h3>Historial de Informes Generados</h3>
+        <div class="search-bar-row">
+            <input type="text" id="inputBuscarHistorial" placeholder="Buscar por código o cliente..." onkeyup="if(event.key === 'Enter') cargarHistorial()">
+            <button type="button" onclick="cargarHistorial()">Buscar</button>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="historial-table">
+                <thead>
+                    <tr>
+                        <th>N° Informe</th>
+                        <th>Código</th>
+                        <th>Cliente</th>
+                        <th>Ley Au (gr/TM)</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaHistorialBody">
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: #64748B;">Usa el buscador o presiona la opción de historial para ver registros.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -86,9 +130,10 @@
         const ahora = new Date();
         ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
         document.getElementById("fecha_recepcion").value = ahora.toISOString().slice(0, 16);
+        cargarHistorial(); // Cargar historial al iniciar
     };
 
-    // Búsqueda 100% automática al terminar de escribir el código
+    // Búsqueda automática al terminar de escribir el código de muestra
     async function buscarRecepcionAutomatica() {
         const codigo = document.getElementById("codigo").value.trim();
         if (!codigo) return;
@@ -112,6 +157,43 @@
         }
     }
 
+    async function cargarHistorial() {
+        const query = document.getElementById("inputBuscarHistorial").value.trim();
+        let url = "/api/informes/historial";
+        if (query) {
+            url += `?q=${encodeURIComponent(query)}`;
+        }
+
+        try {
+            const respuesta = await fetch(url);
+            const resultado = await respuesta.json();
+            const tbody = document.getElementById("tablaHistorialBody");
+            tbody.innerHTML = "";
+
+            if (resultado.status === "ok" && resultado.historial && resultado.historial.length > 0) {
+                resultado.historial.forEach(item => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><strong>${item.nro_informe_str || item.id}</strong></td>
+                        <td>${item.codigo || ''}</td>
+                        <td>${item.cliente || ''}</td>
+                        <td>${item.ley_au !== undefined ? Number(item.ley_au).toFixed(2) : '0.00'}</td>
+                        <td>
+                            ${item.url_pdf && item.url_pdf !== '#' ? `<a class="btn-small" href="${item.url_pdf}" target="_blank">📥 PDF</a>` : '<span style="color:#94a3b8; font-size:12px;">Pendiente</span>'}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #64748B;">No se encontraron informes registrados.</td></tr>`;
+            }
+        } catch (error) {
+            console.error("Error cargando historial:", error);
+            const tbody = document.getElementById("tablaHistorialBody");
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #dc2626;">Error al conectar con el servidor.</td></tr>`;
+        }
+    }
+
     async function enviarDatos() {
         const mensajeDiv = document.getElementById("mensaje");
         const btn = document.getElementById("btnGuardar");
@@ -125,7 +207,7 @@
 
         const peso_au = parseNum(document.getElementById("peso_au").value);
         const peso_muestra = parseNum(document.getElementById("peso_muestra").value) || 10.0;
-        const porcentaje = parseNum(document.getElementById("porcentaje").value) || 100;
+        const porcentaje = parseNum(document.formatPorcentaje ? document.formatPorcentaje.value : document.getElementById("porcentaje").value) || 100;
 
         if (!cliente || !codigo) {
             alert("Por favor completa todos los campos requeridos.");
@@ -150,11 +232,10 @@
                 mensajeDiv.className = "alert success";
                 mensajeDiv.innerHTML = `
                     ✅ <strong>${resultado.mensaje}</strong><br><br>
-                    <strong>Recepción:</strong> ${resultado.fecha_recepcion}<br>
-                    <strong>Emisión:</strong> ${resultado.fecha_emision}<br>
                     Ley Au: <strong>${resultado.ley_calculada} gr/tm</strong><br><br>
                     <a class="download-btn" href="${resultado.url_descarga}" target="_blank">📥 Descargar PDF Oficial</a>
                 `;
+                cargarHistorial(); // Actualizar historial
             } else {
                 mensajeDiv.className = "alert error";
                 mensajeDiv.innerHTML = `❌ ${resultado.mensaje}`;
@@ -171,5 +252,5 @@
     }
 </script>
 
-</body> 
+</body>
 </html>
